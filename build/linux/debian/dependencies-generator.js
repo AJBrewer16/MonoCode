@@ -26,7 +26,7 @@ function getDependencies(buildDir, applicationName, arch) {
     files.push(path.join(buildDir, 'chrome-sandbox'));
     files.push(path.join(buildDir, 'chrome_crashpad_handler'));
     // Generate the dependencies.
-    const dependencies = files.map((file) => calculatePackageDeps(file, arch));
+    const dependencies = files.map((file) => calculatePackageDeps(file, arch, buildDir));
     return Promise.all(dependencies).then((resolvedDependencies) => {
         // Add additional dependencies.
         const additionalDepsSet = new Set(dep_lists_1.additionalDeps);
@@ -47,7 +47,7 @@ function getDependencies(buildDir, applicationName, arch) {
 }
 exports.getDependencies = getDependencies;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/calculate_package_deps.py.
-async function calculatePackageDeps(binaryPath, arch) {
+async function calculatePackageDeps(binaryPath, arch, buildRoot) {
     // TODO: Do we need this following try-catch check for Debian?
     // Test by running it through the CL.
     try {
@@ -66,7 +66,7 @@ async function calculatePackageDeps(binaryPath, arch) {
     const cmd = [];
     switch (arch) {
         case 'amd64':
-            cmd.push(`-l${sysroot}/usr/lib/x86_64-linux-gnu`, `-l${sysroot}/lib/x84_64-linux-gnu`);
+            cmd.push(`-l${sysroot}/usr/lib/x86_64-linux-gnu`, `-l${sysroot}/lib/x86_64-linux-gnu`);
             break;
         case 'armhf':
             cmd.push(`-l${sysroot}/usr/lib/arm-linux-gnueabihf`, `-l${sysroot}/lib/arm-linux-gnueabihf`);
@@ -77,11 +77,12 @@ async function calculatePackageDeps(binaryPath, arch) {
         default:
             throw new Error('Unsupported architecture ' + arch);
     }
-    cmd.push(`-l${sysroot}/usr/lib`, '-O', '-e', binaryPath);
-    // Attach that file after checking the licence
+    cmd.push(`-l${sysroot}/usr/lib`);
+    cmd.push(`-l${path.resolve(buildRoot)}`);
+    cmd.push('-O', '-e', path.resolve(binaryPath));
     const dpkgShlibdepsResult = (0, child_process_1.spawnSync)(dpkgShlibdepsScriptLocation, cmd, { cwd: sysroot });
     if (dpkgShlibdepsResult.status !== 0) {
-        throw new Error(`dpkg-shlibdeps failed with exit code ${dpkgShlibdepsResult.status}.\nstderr: ${dpkgShlibdepsResult.stderr}`);
+        throw new Error(`dpkg-shlibdeps failed with exit code ${dpkgShlibdepsResult.status}. stderr:\n${dpkgShlibdepsResult.stderr} `);
     }
     const shlibsDependsPrefix = 'shlibs:Depends=';
     const requiresList = dpkgShlibdepsResult.stdout.toString('utf-8').trimEnd().split('\n');

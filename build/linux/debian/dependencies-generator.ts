@@ -31,7 +31,7 @@ export function getDependencies(buildDir: string, applicationName: string, arch:
 	files.push(path.join(buildDir, 'chrome_crashpad_handler'));
 
 	// Generate the dependencies.
-	const dependencies: Promise<Set<string>>[] = files.map((file) => calculatePackageDeps(file, arch));
+	const dependencies: Promise<Set<string>>[] = files.map((file) => calculatePackageDeps(file, arch, buildDir));
 	return Promise.all(dependencies).then((resolvedDependencies) => {
 		// Add additional dependencies.
 		const additionalDepsSet = new Set(additionalDeps);
@@ -55,7 +55,7 @@ export function getDependencies(buildDir: string, applicationName: string, arch:
 }
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/calculate_package_deps.py.
-async function calculatePackageDeps(binaryPath: string, arch: string): Promise<Set<string>> {
+async function calculatePackageDeps(binaryPath: string, arch: string, buildRoot: string): Promise<Set<string>> {
 	// TODO: Do we need this following try-catch check for Debian?
 	// Test by running it through the CL.
 	try {
@@ -76,7 +76,7 @@ async function calculatePackageDeps(binaryPath: string, arch: string): Promise<S
 	switch (arch) {
 		case 'amd64':
 			cmd.push(`-l${sysroot}/usr/lib/x86_64-linux-gnu`,
-				`-l${sysroot}/lib/x84_64-linux-gnu`);
+				`-l${sysroot}/lib/x86_64-linux-gnu`);
 			break;
 		case 'armhf':
 			cmd.push(`-l${sysroot}/usr/lib/arm-linux-gnueabihf`,
@@ -89,12 +89,13 @@ async function calculatePackageDeps(binaryPath: string, arch: string): Promise<S
 		default:
 			throw new Error('Unsupported architecture ' + arch);
 	}
-	cmd.push(`-l${sysroot}/usr/lib`, '-O', '-e', binaryPath);
+	cmd.push(`-l${sysroot}/usr/lib`);
+	cmd.push(`-l${path.resolve(buildRoot)}`);
+	cmd.push('-O', '-e', path.resolve(binaryPath));
 
-	// Attach that file after checking the licence
 	const dpkgShlibdepsResult = spawnSync(dpkgShlibdepsScriptLocation, cmd, { cwd: sysroot });
 	if (dpkgShlibdepsResult.status !== 0) {
-		throw new Error(`dpkg-shlibdeps failed with exit code ${dpkgShlibdepsResult.status}.\nstderr: ${dpkgShlibdepsResult.stderr}`);
+		throw new Error(`dpkg-shlibdeps failed with exit code ${dpkgShlibdepsResult.status}. stderr:\n${dpkgShlibdepsResult.stderr} `);
 	}
 
 	const shlibsDependsPrefix = 'shlibs:Depends=';
