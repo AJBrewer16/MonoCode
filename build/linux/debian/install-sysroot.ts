@@ -6,7 +6,7 @@
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
-import * as http from 'http';
+import * as https from 'https';
 import * as path from 'path';
 import { sysrootInfo } from './sysroots';
 
@@ -67,16 +67,16 @@ export async function getSysroot(arch: string): Promise<string> {
 	const tarball = path.join(sysroot, tarballFilename);
 	console.log(`Downloading ${url}`);
 	let downloadSuccess = false;
-	for (let i = 0; i < 3; i++) {
+	for (let i = 0; i < 3 && !downloadSuccess; i++) {
 		try {
-			const response = new Promise<string>((c) => {
-				http.get(url, (res) => {
-					let chunkData = '';
+			const response = new Promise<Buffer>((c) => {
+				https.get(url, (res) => {
+					const chunks: Uint8Array[] = [];
 					res.on('data', (chunk) => {
-						chunkData += chunk.toString();
+						chunks.push(chunk);
 					});
 					res.on('end', () => {
-						c(chunkData);
+						c(Buffer.concat(chunks));
 					});
 				});
 			});

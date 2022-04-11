@@ -8,7 +8,7 @@ exports.getSysroot = void 0;
 const child_process_1 = require("child_process");
 const crypto_1 = require("crypto");
 const fs = require("fs");
-const http = require("http");
+const https = require("https");
 const path = require("path");
 const sysroots_1 = require("./sysroots");
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
@@ -57,16 +57,16 @@ async function getSysroot(arch) {
     const tarball = path.join(sysroot, tarballFilename);
     console.log(`Downloading ${url}`);
     let downloadSuccess = false;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 3 && !downloadSuccess; i++) {
         try {
             const response = new Promise((c) => {
-                http.get(url, (res) => {
-                    let chunkData = '';
+                https.get(url, (res) => {
+                    const chunks = [];
                     res.on('data', (chunk) => {
-                        chunkData += chunk.toString();
+                        chunks.push(chunk);
                     });
                     res.on('end', () => {
-                        c(chunkData);
+                        c(Buffer.concat(chunks));
                     });
                 });
             });
